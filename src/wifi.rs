@@ -1,5 +1,5 @@
 use crate::global::STACK_RESOURCE_SIZE;
-use crate::{mk_static, PASSWORD, SSID};
+use crate::{PASSWORD, SSID, mk_static};
 use defmt::info;
 use embassy_executor::Spawner;
 use embassy_net::{DhcpConfig, Runner, Stack, StackResources};

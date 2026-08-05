@@ -1,9 +1,9 @@
 use crate::blinky::BlinkSender;
-use crate::web::engine::{parse_request, write_response, HttpError};
+use crate::web::engine::{HttpError, parse_request, write_response};
 use crate::web::mime::TEXT_MIME;
 use crate::web::route::handle_request;
-use embassy_net::tcp::TcpSocket;
 use embassy_net::Stack;
+use embassy_net::tcp::TcpSocket;
 use embassy_time::{Duration, Timer};
 
 #[embassy_executor::task(pool_size = 4)]

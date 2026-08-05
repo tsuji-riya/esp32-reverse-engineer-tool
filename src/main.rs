@@ -15,7 +15,7 @@ use esp_hal::timer::timg::TimerGroup;
 #[allow(unused_imports)]
 use esp_println as _;
 
-use crate::blinky::{led_blink_task, BLINK_CHANNEL};
+use crate::blinky::{BLINK_CHANNEL, led_blink_task};
 use crate::web::setup::setup_web;
 #[allow(unused_imports)]
 use esp_backtrace as _;

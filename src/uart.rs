@@ -1,10 +1,10 @@
 use alloc::string::ToString;
 use core::any::Any;
 use defmt::error;
+use esp_hal::Async;
 use esp_hal::gpio::interconnect::{PeripheralInput, PeripheralOutput};
 use esp_hal::peripherals::UART1;
 use esp_hal::uart::{AtCmdConfig, Config, ConfigError, Uart};
-use esp_hal::Async;
 
 // fifo_full_threshold (RX)
 pub const READ_BUF_SIZE: usize = 64;
