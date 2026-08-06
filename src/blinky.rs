@@ -15,8 +15,8 @@ pub async fn led_blink_task(
         receiver.receive().await;
 
         led.set_high();
-        Timer::after(Duration::from_millis(50)).await;
+        Timer::after(Duration::from_millis(10)).await;
         led.set_low();
-        Timer::after(Duration::from_millis(50)).await;
+        Timer::after(Duration::from_millis(10)).await;
     }
 }

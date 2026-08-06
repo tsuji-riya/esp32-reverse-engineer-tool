@@ -1,5 +1,4 @@
-use crate::global::STACK_RESOURCE_SIZE;
-use crate::{PASSWORD, SSID, mk_static};
+use crate::{mk_static, PASSWORD, SSID};
 use defmt::info;
 use embassy_executor::Spawner;
 use embassy_net::{DhcpConfig, Runner, Stack, StackResources};
@@ -9,12 +8,21 @@ use esp_hal::rng::Rng;
 use esp_radio::wifi::sta::StationConfig;
 use esp_radio::wifi::{Config, ControllerConfig, Interface, WifiController};
 
-pub async fn setup_wifi(
+const ESP_RADIO_RESOURCE: usize = 1;
+const EMBASSY_NET_RESOURCE: usize = 1;
+pub const WEB_WORKERS_SIZE: usize = 4;
+pub const STACK_RESOURCE_SIZE: usize = ESP_RADIO_RESOURCE + EMBASSY_NET_RESOURCE + WEB_WORKERS_SIZE;
+
+pub fn setup_wifi(
     spawner: Spawner,
     wifi_peripheral: peripherals::WIFI<'static>,
     ssid: &str,
     password: &str,
-) -> Stack<'static> {
+) -> (
+    Stack<'static>,
+    WifiController<'static>,
+    Runner<'static, Interface<'static>>,
+) {
     let station_config = Config::Station(
         StationConfig::default()
             .with_ssid(ssid)
@@ -44,20 +52,11 @@ pub async fn setup_wifi(
         seed,
     );
 
-    spawner.spawn(connection_task(wifi_controller).unwrap());
-    spawner.spawn(net_task(runner).unwrap());
-
-    stack.wait_config_up().await;
-
-    if let Some(config) = stack.config_v4() {
-        info!("Got IP: {}", config.address);
-    }
-
-    stack
+    return (stack, wifi_controller, runner);
 }
 
 #[embassy_executor::task]
-pub async fn connection_task(mut controller: WifiController<'static>) {
+pub async fn connection_task(controller: &'static mut WifiController<'static>) {
     info!("start connection task");
 
     loop {

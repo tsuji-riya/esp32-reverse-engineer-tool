@@ -1,6 +1,6 @@
 use crate::blinky::BlinkSender;
-use crate::global::WEB_WORKERS_SIZE;
 use crate::web::worker::http_worker;
+use crate::wifi::WEB_WORKERS_SIZE;
 use embassy_executor::Spawner;
 use embassy_net::Stack;
 

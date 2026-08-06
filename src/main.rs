@@ -3,9 +3,8 @@
 #![feature(impl_trait_in_assoc_type)]
 extern crate alloc;
 
-use crate::wifi::setup_wifi;
 use alloc::borrow::ToOwned;
-use defmt::println;
+use defmt::{error, info, println};
 use embassy_executor::Spawner;
 use embedded_io_async::{Read, Write};
 use esp_hal::clock::CpuClock;
@@ -15,16 +14,19 @@ use esp_hal::timer::timg::TimerGroup;
 #[allow(unused_imports)]
 use esp_println as _;
 
-use crate::blinky::{BLINK_CHANNEL, led_blink_task};
+use crate::blinky::{led_blink_task, BLINK_CHANNEL};
+use crate::uart::UartStack;
 use crate::web::setup::setup_web;
+use crate::wifi::{connection_task, net_task, setup_wifi};
 #[allow(unused_imports)]
 use esp_backtrace as _;
 use esp_hal::gpio::{Level, Output, OutputConfig};
 use esp_hal::system::Stack;
+use esp_radio::wifi::WifiController;
+use esp_rtos::embassy::Executor;
 use static_cell::StaticCell;
 
 mod blinky;
-mod global;
 mod uart;
 mod util;
 mod web;
@@ -36,6 +38,8 @@ const PASSWORD: &str = env!("PASSWORD");
 // This creates a default app-descriptor required by the esp-idf bootloader.
 // For more information see: <https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/app_image_format.html#application-description>
 esp_bootloader_esp_idf::esp_app_desc!();
+
+pub static CONTROLLER: StaticCell<WifiController<'static>> = StaticCell::new();
 
 #[esp_rtos::main]
 async fn main(spawner: Spawner) {
@@ -57,12 +61,42 @@ async fn main(spawner: Spawner) {
     println!("Embassy initialized!");
 
     // Wi-Fi
-    let stack = setup_wifi(spawner, peripherals.WIFI, SSID, PASSWORD).await;
+    let (stack, wifi_controller, runner) = setup_wifi(spawner, peripherals.WIFI, SSID, PASSWORD);
 
+    let wifi_controller = CONTROLLER.init(wifi_controller);
     let led_pin = Output::new(peripherals.GPIO2, Level::Low, OutputConfig::default());
-    let sender = BLINK_CHANNEL.sender();
     let receiver = BLINK_CHANNEL.receiver();
-    spawner.spawn(led_blink_task(led_pin, receiver).unwrap());
+
+    esp_rtos::start_second_core(
+        peripherals.CPU_CTRL,
+        sw_interrupt.software_interrupt1,
+        app_core_stack,
+        move || {
+            static EXECUTOR: StaticCell<Executor> = StaticCell::new();
+            let executor = EXECUTOR.init(Executor::new());
+            executor.run(|spawner| {
+                spawner.spawn(connection_task(wifi_controller).unwrap());
+                spawner.spawn(led_blink_task(led_pin, receiver).unwrap());
+            });
+        },
+    );
+
+    spawner.spawn(net_task(runner).unwrap());
+
+    stack.wait_config_up().await;
+
+    if let Some(config) = stack.config_v4() {
+        info!("Got IP: {}", config.address);
+    }
+
+    let sender = BLINK_CHANNEL.sender();
+
+    let mut uart_stack = UartStack::new(peripherals.UART1, peripherals.GPIO12, peripherals.GPIO13);
+    let config = esp_hal::uart::Config::default();
+    if let Err(e) = uart_stack.initialize(spawner, config) {
+        error!("Failed to initialize UART: {}", e);
+        return;
+    };
 
     setup_web(spawner, stack, sender);
 }
